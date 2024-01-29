@@ -1,1 +1,6 @@
-export type GqlContext = {};
+import { User } from "../modules/db";
+
+export type GqlContext = {
+    currentUser: User | null;
+    
+};

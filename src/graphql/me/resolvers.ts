@@ -3,7 +3,9 @@ import { GqlResolvers } from '../../generated/graphql';
 const meResolvers: GqlResolvers = {
   Query: {
     // TODO
-    me: () => null,
+    me: (_, __, { currentUser }) => {
+      return currentUser;
+    },
   },
 };
 
