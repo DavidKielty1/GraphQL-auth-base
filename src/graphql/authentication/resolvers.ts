@@ -1,6 +1,8 @@
 import bcrypt from 'bcrypt';
 import { DateTime } from 'luxon';
 import { GraphQLError } from 'graphql';
+import jwt from 'jsonwebtoken';
+import invariant from 'invariant';
 import { GqlResolvers } from '../../generated/graphql';
 import db, { genId } from '../../modules/db';
 import { nanoid } from 'nanoid';
@@ -36,8 +38,45 @@ const authResolvers: GqlResolvers = {
       return { success: true };
     },
 
+    signUp: async (_, { token, email, password }) => {
+      const request = await db.signUpRequest.findUnique({ where: { email } });
+      if (!request) throw new GraphQLError('Sign up request not found');
+
+      if (request.expiresAt < new Date())
+        throw new GraphQLError('Sign up request expired');
+
+      if (request.redeemedAt || request.expiresAt < new Date())
+        throw new GraphQLError('Token has already been redeemed');
+
+      // Compare token with tokenHash
+      const validToken = await bcrypt.compare(token, request.tokenHash);
+      if (!validToken) throw new GraphQLError('Invalid token');
+
+      const existingUser = await db.user.findUnique({ where: { email } });
+      if (existingUser) throw new GraphQLError('User already exists');
+
+      // Create user
+      const [user] = await db.$transaction([
+        db.user.create({
+          data: {
+            id: genId(),
+            email,
+            passwordHash: await bcrypt.hash(password, SALT_ROUNDS),
+          },
+        }),
+        db.signUpRequest.update({
+          where: { id: request.id },
+          data: { redeemedAt: new Date() },
+        }),
+      ]);
+
+      invariant(process.env.JWT_SECRET, 'process.env.JWT_SECRET not set');
+      const authToken = jwt.sign({ userId: user.id }, process.env.JWT_SECRET);
+
+      return { authToken };
+    },
+
     // signIn: () => {},
-    // signUp: () => {},
   },
 };
 
