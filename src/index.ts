@@ -14,13 +14,11 @@ const startServer = async () => {
     listen: { host: '0.0.0.0', port: 8080 },
 
     context: async ({ req }) => {
-      console.log(req.headers);
       const authToken = req.headers.authorization?.split(' ')[1];
       if (!authToken) return { currentUser: null };
 
       try {
         const currentUser = await Auth.verifyAuthToken(authToken);
-        console.log('currentUser', currentUser);
         return { currentUser };
       } catch (e) {
         throw new GraphQLError('Invalid auth token', {
